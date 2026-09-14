@@ -406,4 +406,146 @@ public static void testSendOrderEmail() {
         // Reset flag
         AgriEdgeOrderTriggerHelper.isTriggerExecuted = false;
     }
+    // ---------------------------------------------------------
+// Additional coverage for OrderStatusUpdater
+// ---------------------------------------------------------
+@isTest
+public static void testOrderStatusUpdaterEdgeCases() {
+
+    // Test null orderIds
+    OrderStatusUpdater.updateOrderStatus(null);
+
+    // Test empty orderIds
+    OrderStatusUpdater.updateOrderStatus(new Set<Id>());
+
+    // Create an order that is NOT New
+    AgriEdge_Order__c processingOrder = new AgriEdge_Order__c(
+        Order_Status__c = 'Processing',
+        Payment_Status__c = 'Pending'
+    );
+    insert processingOrder;
+
+    Test.startTest();
+
+    // Processing order should not be changed
+    OrderStatusUpdater.updateOrderStatus(
+        new Set<Id>{processingOrder.Id}
+    );
+
+    Test.stopTest();
+
+    AgriEdge_Order__c result = [
+        SELECT Id, Order_Status__c
+        FROM AgriEdge_Order__c
+        WHERE Id = :processingOrder.Id
+    ];
+
+    System.assertEquals(
+        'Processing',
+        result.Order_Status__c,
+        'A Processing order should remain Processing.'
+    );
+}
+@isTest
+public static void testOrderStatusUpdaterDirectNewOrder() {
+
+    Test.startTest();
+
+    AgriEdge_Order__c newOrder = new AgriEdge_Order__c(
+        Order_Status__c = 'New',
+        Payment_Status__c = 'Pending'
+    );
+
+    insert newOrder;
+
+    OrderStatusUpdater.updateOrderStatus(
+        new Set<Id>{newOrder.Id}
+    );
+
+    Test.stopTest();
+
+    AgriEdge_Order__c result = [
+        SELECT Id, Order_Status__c
+        FROM AgriEdge_Order__c
+        WHERE Id = :newOrder.Id
+    ];
+
+    System.assertEquals(
+        'Processing',
+        result.Order_Status__c,
+        'New order should be changed to Processing.'
+    );
+}
+@isTest
+public static void testAgriEdgeOrderShipmentHelperAllPaths() {
+
+    // Shipped → In Transit
+    AgriEdge_Order__c shippedOrder = new AgriEdge_Order__c(
+        Order_Status__c = 'Shipped',
+        Payment_Status__c = 'Pending'
+    );
+    insert shippedOrder;
+
+    // Delivered → Delivered
+    AgriEdge_Order__c deliveredOrder = new AgriEdge_Order__c(
+        Order_Status__c = 'Delivered',
+        Payment_Status__c = 'Paid'
+    );
+    insert deliveredOrder;
+
+    // Create existing shipments
+    AgriEdge_Shipment__c shippedShipment = new AgriEdge_Shipment__c(
+        Order__c = shippedOrder.Id,
+        Tracking_Number__c = 'SHIP_TEST',
+        Status__c = 'Pending'
+    );
+
+    AgriEdge_Shipment__c deliveredShipment = new AgriEdge_Shipment__c(
+        Order__c = deliveredOrder.Id,
+        Tracking_Number__c = 'DEL_TEST',
+        Status__c = 'In Transit'
+    );
+
+    insert new List<AgriEdge_Shipment__c>{
+        shippedShipment,
+        deliveredShipment
+    };
+
+    Test.startTest();
+
+    AgriEdgeOrderShipmentHelper.processOrderStatusChange(
+        new List<AgriEdge_Order__c>{
+            shippedOrder,
+            deliveredOrder
+        }
+    );
+
+    Test.stopTest();
+
+    // Verify Shipped shipment
+    AgriEdge_Shipment__c shippedResult = [
+        SELECT Status__c
+        FROM AgriEdge_Shipment__c
+        WHERE Id = :shippedShipment.Id
+    ];
+
+    System.assertEquals(
+        'In Transit',
+        shippedResult.Status__c,
+        'Shipped order shipment should become In Transit.'
+    );
+
+    // Verify Delivered shipment
+    AgriEdge_Shipment__c deliveredResult = [
+        SELECT Status__c
+        FROM AgriEdge_Shipment__c
+        WHERE Id = :deliveredShipment.Id
+    ];
+
+    System.assertEquals(
+        'Delivered',
+        deliveredResult.Status__c,
+        'Delivered order shipment should become Delivered.'
+    );
+}
 }
