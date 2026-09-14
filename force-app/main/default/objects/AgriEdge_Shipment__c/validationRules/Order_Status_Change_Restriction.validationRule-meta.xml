@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Order_Status_Change_Restriction</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND( ISPICKVAL( AgriEdge_Order__r.Order_Status__c , &apos;Delivered&apos;), ISBLANK( Tracking_Number__c ) )</errorConditionFormula>
+    <errorDisplayField>Tracking_Number__c</errorDisplayField>
+    <errorMessage>Tracking Number is required before marking order as Delivered</errorMessage>
+</ValidationRule>
